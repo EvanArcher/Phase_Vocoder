@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 N = 1024
 hop_size = int(N/2)
 # 1. Read in signal 
-signal, signal_sample_rate = sf.read('test_5_seconds.wav')
+signal, signal_sample_rate = sf.read('My_vocals.wav')
 try:
     if signal.shape[1] == 2: # check if impulse is dual signal
         signal = np.mean(signal, axis=1)
@@ -57,7 +57,7 @@ for i in range(0, len(signal), hop_size):
 # 8. Now move by Hop size samples and repeat process, Hop size is N/2 in our case
 
 #play sound to see how it is
-sd.play(signal, signal_sample_rate)
-sd.wait()  # Wait until the sound is finished playing
+# sd.play(signal, signal_sample_rate)
+# sd.wait()  # Wait until the sound is finished playing
 sd.play(output_signal, signal_sample_rate)
 sd.wait()  # Wait until the sound is finished playing

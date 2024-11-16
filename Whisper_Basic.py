@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import cmath
 import random
 #chunk size and hop size
-N = 256
+N = 512
 hop_size = int(N/2)
 # 1. Read in signal 
 signal, signal_sample_rate = sf.read('My_vocals.wav')
@@ -49,7 +49,7 @@ for i in range(0, len(signal), hop_size):
 # apply the robotization effect, which is where we make random phase from
 # our fft so essentially abs(fft_values)*(cos(k)+jsin(k)) which is e^jk
     random_phases = np.random.uniform(0, 2*np.pi,N) #random phases between 0 and 2pi
-    Whisper_Signal = abs(fft_signal)*np.exp(1j*random_phases)
+    Whisper_Signal = fft_signal*np.exp(1j*random_phases)
 #6. apply IFFT to signal
     ifft_signal = np.fft.ifft(Whisper_Signal)
 
