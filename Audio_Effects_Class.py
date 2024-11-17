@@ -4,6 +4,8 @@ import scipy.signal
 class AudioEffects:
     def __init__(self):
         None    
+    def normal_signal(self,signal):
+        return signal
     def basic_delay_init(self,delay_ms=250, samplerate=44100, delay_gain=0.5):
         """
         Initialize the audio effect class with a delay buffer.
@@ -18,13 +20,7 @@ class AudioEffects:
         self.delay_gain = delay_gain
         
         # Convert delay time from milliseconds to samples
-        self.delay_samples = int((delay_ms / 1000) * samplerate)
-        
-        # Initialize a circular buffer for delay (2x delay size for wrap-around)
-        self.delay_buffer = np.zeros(self.delay_samples * 2)
-        
-        # Track the position in the circular buffer
-        self.buffer_pos = 0
+        self.delay_buffer = CircularBuffer(buffer_len_ms = delay_ms * 2, sample_rate=samplerate, signal_size=0)
     def basic_delay(self, signal):
         """
         Apply a simple delay effect to the audio signal with feedback.
@@ -40,38 +36,27 @@ class AudioEffects:
         """
         # Ensure signal is 1D (flatten if it's a 2D array with shape (512, 1))
         signal = signal.flatten()
-
         signal_len = len(signal)
         
-        # Output signal to hold the processed result
-        output_signal = np.zeros_like(signal)
+        # Initialize delay buffer if not done already (lazy initialization of signal size)
+        if self.delay_buffer.signal_len == 0:
+            self.delay_buffer.signal_len = signal_len
+        
+        # Retrieve the current buffer state (delayed signal)
+        delayed_signal = self.delay_buffer.get_buffer()
 
-        # Calculate the delayed buffer position (N samples before the current position)
-        delayed_buffer_pos = (self.buffer_pos - self.delay_samples) % len(self.delay_buffer)
+        # Calculate delayed indices for reading
+        delayed_buffer_pos = (self.delay_buffer.pos - self.delay_buffer.buffer_size // 2) % self.delay_buffer.buffer_size
+        delayed_indices = np.arange(delayed_buffer_pos, delayed_buffer_pos + signal_len) % self.delay_buffer.buffer_size
         
-        # Calculate the range of indices for the delayed samples
-        delayed_indices = np.arange(delayed_buffer_pos, delayed_buffer_pos + signal_len) % len(self.delay_buffer)
+        # Apply delay effect
+        output_signal = signal + self.delay_gain * delayed_signal[delayed_indices]
         
-        # Apply the delay using the formula: y[n] = x[n] + gain * x[n - N]
-        output_signal[:] = signal[:] + self.delay_gain * self.delay_buffer[delayed_indices]
-        
-        # Handle circular buffer wrap-around for writing new data
-        end_pos = self.buffer_pos + signal_len
-        if end_pos <= len(self.delay_buffer):
-            # No wrap-around needed, can write in one go
-            self.delay_buffer[self.buffer_pos:end_pos] = signal[:]
-        else:
-            # Wrap-around needed, split the writing process
-            first_part_len = len(self.delay_buffer) - self.buffer_pos
-            self.delay_buffer[self.buffer_pos:] = signal[:first_part_len]  # Write to the end of the buffer
-            self.delay_buffer[:end_pos % len(self.delay_buffer)] = signal[first_part_len:]  # Write the rest at the start
-
-        # Update buffer position and handle wrap-around
-        self.buffer_pos = (self.buffer_pos + signal_len) % len(self.delay_buffer)
+        # Update buffer with the current signal
+        self.delay_buffer.update_buffer(output_signal)
 
         return output_signal
 
-    
 
 def circular_buffer(self,signal, sample_rate, buffer_len = 2000):
     """circular buffer creates a circular buffer with a defualt length of 2 seconds of
