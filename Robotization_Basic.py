@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 N = 1024 # 1024 seems to be the optimal window size
 hop_size = int(N/2)
 # 1. Read in signal 
-signal, signal_sample_rate = sf.read('My_vocals.wav')
+signal, signal_sample_rate = sf.read('guitar.mp3')
 try:
     if signal.shape[1] == 2: # check if impulse is dual signal
         signal = np.mean(signal, axis=1)

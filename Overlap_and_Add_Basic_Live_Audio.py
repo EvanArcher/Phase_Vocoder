@@ -19,12 +19,12 @@ from Audio_Effects_Class import AudioEffects
 
 print(sd.query_devices())
 # Set default output device to your headphones (replace with correct device index)
-# sd.default.device = (1, 0)  # (input_device, output_device), only set output in this case
+sd.default.device = (0, 1)  # (input_device, output_device), only set output in this case
 
 samp_rate = (44100)*2 # 192kHz sampling rate
 chunk = 2**12  # 100ms of data at 192kHz
-delay_ms = 250 # Delay time in milliseconds
-delay_gain = .7
+delay_ms = 100 # Delay time in milliseconds
+delay_gain = .5
 
 # Create an instance of the AudioEffects class with delay settings
 effects = AudioEffects()
@@ -37,7 +37,8 @@ def callback(indata, outdata, frames, time, status):
         print(status)
 
     # Apply the delay effect to the incoming block of audio
-    delayed_output = effects.basic_delay(indata)  # Call the class method to process the audio
+    # delayed_output = effects.basic_delay_with_feedback(indata)  # Call the class method to process the audio
+    delayed_output = effects.basic_delay(indata)
     # print(delayed_output)
     # Output the processed signal (you can also adjust gain here)
     outdata[:] = delayed_output.reshape(outdata.shape)  # Amplify the delayed output if needed

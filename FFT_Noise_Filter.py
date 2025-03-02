@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 N = 2**9
 hop_size = int(N/2)
 # 1. Read in signal 
-signal, signal_sample_rate = sf.read('My_vocals.wav')
+signal, signal_sample_rate = sf.read('guitar.mp3')
 try:
     if signal.shape[1] == 2: # check if impulse is dual signal
         signal = np.mean(signal, axis=1)
@@ -32,7 +32,7 @@ desired_noise_ratio  = .5 #NSR lol = noise/signal
 noise = np.random.normal(0,1,signal.shape)
 scaled_noise = noise * (signal_std * desired_noise_ratio)
 
-noisy_signal = signal + scaled_noise
+noisy_signal = signal #+ scaled_noise
 
 
 
@@ -101,8 +101,8 @@ for i in range(0, len(noisy_signal), hop_size):
 # sd.play(signal, signal_sample_rate)
 # sd.wait()  # Wait until the sound is finished playing
 
-sd.play(noisy_signal, signal_sample_rate)
-sd.wait()  # Wait until the sound is finished playing
+# sd.play(noisy_signal, signal_sample_rate)
+# sd.wait()  # Wait until the sound is finished playing
 
 sd.play(output_signal, signal_sample_rate)
 sd.wait()  # Wait until the sound is finished playing
