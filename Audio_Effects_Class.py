@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import scipy.signal 
 
 class AudioEffects:
@@ -106,7 +107,7 @@ class AudioEffects:
         self.signal_len_noise_filter = signal_len
         self.signal_hamm_window = np.hamming(self.signal_len_noise_filter)
     
-    def basic_noise_filter(self, signal, ):
+    def basic_noise_filter(self, signal):
         """
         Apply a noise filter using PSD and fft, filters out untouched frequencies,
         however we can leverage this with just reducing the magnitude of the fft
@@ -202,6 +203,58 @@ class CircularBuffer:
 
 
 
+class LFO:
+    def __init__(self, amplitude=1.0, frequency=5.0, sample_rate=44100, waveform='sine'):
+        """
+        Initilize a Low Frequency Oscillator
+        
+        Args
+        amplitude (float): between 0 and 1, amplitude of wave
+        frequency (float): in hz freqency of the wave
+        waveform (str): what type of waveform is it
+        sample_rate (int): sample rate of signal
+        """
+        self.amplitude = float(amplitude)
+        self.frequency = float(frequency)        
+        self.sample_rate = int(sample_rate)
+        self.waveform = str(waveform)
+        self.phase = 0.0
+        # Calculate phase increment for each sample step
+        self._phase_increment = 2 * np.pi * self.frequency / self.sample_rate
+    
+    def __iter__(self):
+        """Return the iterator (the object itself is the iterator)."""
+        return self
+
+    def __next__(self):
+        """Compute the next LFO sample and update internal state."""
+        # Generate waveform value based on the current phase
+        if self.waveform == 'sine':
+            value = math.sin(self.phase)
+        elif self.waveform == 'square':
+            # Square wave: output is either +1 or -1 based on sine's sign
+            value = 1.0 if math.sin(self.phase) >= 0 else -1.0
+        elif self.waveform == 'triangle':
+            # Triangle wave: using arcsin of sine to get a linear triangle shape 
+            value = (2 / math.pi) * math.asin(math.sin(self.phase))
+        else:
+            # Default to sine if unknown waveform
+            value = math.sin(self.phase)
+        # Increment phase for the next sample
+        self.phase += self._phase_increment
+        if self.phase >= 2 * math.pi:
+            # Wrap the phase to keep it in [0, 2π)
+            self.phase -= 2 * math.pi
+        # Scale by amplitude and return
+        return value * self.amplitude
+
+    def reset(self):
+        """Reset the oscillator phase to 0 (optional utility method)."""
+        self.phase = 0.0
+
+    # (Optional) If we want a direct method to get the next sample without using next()
+    def next_sample(self):
+        return self.__next__()
 
 
 
