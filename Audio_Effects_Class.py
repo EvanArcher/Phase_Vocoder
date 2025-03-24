@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import scipy.signal 
+import matplotlib.pyplot as plt
 
 class AudioEffects:
     def __init__(self):
@@ -151,6 +152,83 @@ class AudioEffects:
 
         # Now return the cleaned up signal 
         return ifft_denoised_signal
+    
+    def vibrato_init(self, amplitude=0.10, frequency=5.0, sample_rate=44100, waveform='sine'):
+        """
+        Initilize the vibrato function, essentially being used as wrapper to 
+        the LFO class where you pass in what LFO you want and that determines 
+        everything else about your vibrato function
+        
+        Args
+        amplitude (float): between 0 and 1, amplitude of wave
+        frequency (float): in hz freqency of the wave
+        waveform (str): what type of waveform is it
+        sample_rate (int): sample rate of signal
+        """
+        self.vibrato_amplitude = float(amplitude)
+        self.vibrato_frequency = float(frequency)        
+        self.vibrato_sample_rate = int(sample_rate)
+        self.vibrato_waveform = str(waveform)
+        self.lfo = LFO(frequency=self.vibrato_frequency, amplitude=self.vibrato_amplitude, 
+                  sample_rate=self.vibrato_sample_rate, waveform = self.vibrato_waveform)
+        self.vibrato_buffer = CircularBuffer(buffer_len_ms = 250 * 2, sample_rate=self.vibrato_sample_rate, signal_size=0)
+    def vibrato(self, signal):
+        """
+        Parameters
+        ----------
+        signal : numpy array
+            Applys vibrato to the function, vibrato is done by taking the LFO results
+            and then applying interpolation based on the vibrato results, so it 
+            will slow and speed up the signal
+
+        Returns
+        -------
+        output_signal (vibratoed signal).
+
+        """
+        
+    
+    def vibrato_lfo_test(self):
+        # Generate 1 second of samples
+        duration_seconds = 1.0
+        num_samples = int(self.lfo.sample_rate * duration_seconds)
+
+        samples = [self.lfo.next_sample() for _ in range(num_samples)]
+        time = [t / self.lfo.sample_rate for t in range(num_samples)]
+
+        # Plot the result
+        plt.figure(figsize=(10, 4))
+        plt.plot(time, samples)
+        plt.title("LFO Output - 5 Hz Sine Wave")
+        plt.xlabel("Time (seconds)")
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
+        # Compute FFT
+        fft_result = np.fft.fft(samples)
+        frequencies = np.fft.fftfreq(num_samples, d=1/self.vibrato_sample_rate)
+        magnitude = np.abs(fft_result)
+
+        # Limit to positive frequencies and up to 20 Hz
+        positive_freqs = frequencies[:num_samples // 2]
+        positive_magnitude = magnitude[:num_samples // 2]
+
+        # Mask for 0–20 Hz range
+        mask = (positive_freqs >= 0) & (positive_freqs <= 20)
+
+        # Plot FFT
+        plt.figure(figsize=(8, 4))
+        plt.plot(positive_freqs[mask], positive_magnitude[mask])
+        plt.title("FFT of LFO Output (0–20 Hz)")
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Magnitude")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
 
 
 

@@ -74,47 +74,11 @@ print(sd.query_devices())
 # Create an LFO instance (5 Hz sine wave, amplitude 1.0)
 # Create an LFO instance: 5 Hz sine wave at 44100 Hz sample rate
 sample_rate = 44100
-lfo = LFO(frequency=5.0, amplitude=0.1, sample_rate=sample_rate, waveform ='sine')
-
-# Generate 1 second of samples
-duration_seconds = 1.0
-num_samples = int(lfo.sample_rate * duration_seconds)
-
-samples = [lfo.next_sample() for _ in range(num_samples)]
-time = [t / lfo.sample_rate for t in range(num_samples)]
-
-# Plot the result
-plt.figure(figsize=(10, 4))
-plt.plot(time, samples)
-plt.title("LFO Output - 5 Hz Sine Wave")
-plt.xlabel("Time (seconds)")
-plt.ylabel("Amplitude")
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+effects = AudioEffects()
+effects.vibrato_init(amplitude=0.10, frequency=5.0, sample_rate=44100, waveform='sine')
+effects.vibrato_lfo_test()
 
 
-# Compute FFT
-fft_result = np.fft.fft(samples)
-frequencies = np.fft.fftfreq(num_samples, d=1/sample_rate)
-magnitude = np.abs(fft_result)
-
-# Limit to positive frequencies and up to 20 Hz
-positive_freqs = frequencies[:num_samples // 2]
-positive_magnitude = magnitude[:num_samples // 2]
-
-# Mask for 0–20 Hz range
-mask = (positive_freqs >= 0) & (positive_freqs <= 20)
-
-# Plot FFT
-plt.figure(figsize=(8, 4))
-plt.plot(positive_freqs[mask], positive_magnitude[mask])
-plt.title("FFT of LFO Output (0–20 Hz)")
-plt.xlabel("Frequency (Hz)")
-plt.ylabel("Magnitude")
-plt.grid(True)
-plt.tight_layout()
-plt.show()
 
 
 
