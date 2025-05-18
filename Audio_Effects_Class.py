@@ -1,7 +1,9 @@
 import numpy as np
 import math
+from scipy.interpolate import interp1d
 import scipy.signal 
 import matplotlib.pyplot as plt
+import time as timeimport
 
 class AudioEffects:
     def __init__(self):
@@ -169,9 +171,18 @@ class AudioEffects:
         self.vibrato_frequency = float(frequency)        
         self.vibrato_sample_rate = int(sample_rate)
         self.vibrato_waveform = str(waveform)
+        
+        #%%Create LFO for vibrato filter
         self.lfo = LFO(frequency=self.vibrato_frequency, amplitude=self.vibrato_amplitude, 
                   sample_rate=self.vibrato_sample_rate, waveform = self.vibrato_waveform)
-        self.vibrato_buffer = CircularBuffer(buffer_len_ms = 250 * 2, sample_rate=self.vibrato_sample_rate, signal_size=0)
+        
+        # Generate 1 second of samples
+        duration_seconds = 1.0
+        self.lfo_vibrato_num_samples = int(self.lfo.sample_rate * duration_seconds)
+        self.lfo_vibrato_samples = [self.lfo.next_sample() for _ in range(self.lfo_vibrato_num_samples)]
+        
+        self.vibrato_buffer = CircularBuffer(buffer_len_ms = 250 * 2, sample_rate=self.vibrato_sample_rate, signal_size=0)#500 ms buffer
+        
     def vibrato(self, signal):
         """
         Parameters
@@ -184,18 +195,49 @@ class AudioEffects:
         Returns
         -------
         output_signal (vibratoed signal).
-
         """
+        
+        # Ensure signal is 1D (flatten if it's a 2D array with shape (512, 1))
+        signal = signal.flatten()
+        signal_len = len(signal)
+        
+        # Initialize delay buffer if not done already (lazy initialization of signal size)
+        if self.vibrato_buffer.signal_len == 0:
+            self.delay_buffer.signal_len = signal_len
+        
+        # Retrieve the current buffer state (delayed signal)
+        delayed_signal = self.delay_buffer.get_buffer()
+
+        # Calculate delayed indices for reading
+        delayed_buffer_pos = (self.delay_buffer.pos - self.delay_buffer.buffer_size // 2) % self.delay_buffer.buffer_size
+        delayed_indices = np.arange(delayed_buffer_pos, delayed_buffer_pos + signal_len) % self.delay_buffer.buffer_size
+        
+        # Interpolate signal based on computed LFO freq
+        # 1 + LFO value _____ = signal length scale factor
+        LFO_signal_len_scale_factor = 1 + self.lfo_vibrato_samples[ int( self.lfo_vibrato_num_samples * timeimport.time() ) ] #gives sample value based on time
+        output_signal = np.interp(np.linspace(0,signal_len,num=LFO_signal_len_scale_factor), np.linspace(0,signal_len,num=signal_len), signal)
+        # signal + self.delay_gain * delayed_signal[delayed_indices]
+        
+        # Update buffer with the current signal
+        self.delay_buffer.update_buffer(output_signal)
+
+        return output_signal
+        
         
     
     def vibrato_lfo_test(self):
         # Generate 1 second of samples
         duration_seconds = 1.0
+        start_time = timeimport.time()
         num_samples = int(self.lfo.sample_rate * duration_seconds)
 
         samples = [self.lfo.next_sample() for _ in range(num_samples)]
         time = [t / self.lfo.sample_rate for t in range(num_samples)]
-
+        
+        current_time = timeimport.time()
+        decimal,_ = math.modf(current_time)
+        print(current_time)
+        print(decimal)
         # Plot the result
         plt.figure(figsize=(10, 4))
         plt.plot(time, samples)

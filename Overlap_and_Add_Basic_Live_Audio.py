@@ -75,7 +75,9 @@ print(sd.query_devices())
 # Create an LFO instance: 5 Hz sine wave at 44100 Hz sample rate
 sample_rate = 44100
 effects = AudioEffects()
-effects.vibrato_init(amplitude=0.10, frequency=5.0, sample_rate=44100, waveform='sine')
+effects.vibrato_init(amplitude=0.10, frequency=2.0, sample_rate=44100, waveform='sine')
+
+
 effects.vibrato_lfo_test()
 
 
