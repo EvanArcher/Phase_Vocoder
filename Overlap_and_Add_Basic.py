@@ -15,9 +15,27 @@ import sounddevice as sd
 import time 
 import os
 import matplotlib.pyplot as plt
+from Audio_Effects_Class import AudioEffects, LFO
+
+
+#set audio class paramaters
+
+samp_rate = (44100)*1 # 192kHz sampling rate
+chunk = 2**12  # 100ms of data at 192kHz
+delay_ms = 500 # Delay time in milliseconds
+delay_gain = .9
+
+effects = AudioEffects()
+effects.basic_delay_init(delay_ms=delay_ms, samplerate=samp_rate, delay_gain=delay_gain)
+
+effects.basic_noise_filter_init(chunk, .01)
+
+#Vibrato set up
+effects.vibrato_init(amplitude=0.1, frequency=100.0, sample_rate=samp_rate, waveform='square')
+
 
 #chunk size and hop size
-N = 1024
+N = chunk
 hop_size = int(N/2)
 # 1. Read in signal 
 signal, signal_sample_rate = sf.read('My_vocals.wav')
@@ -41,17 +59,20 @@ for i in range(0, len(signal), hop_size):
     chunk = np.pad(chunk, (0, N - len(chunk)), mode='constant')
     windowed_signal = chunk*window
 # 4. apply fft to signal of size M>=N, we will use size N
-    fft_signal = np.fft.fft(windowed_signal)
+    # fft_signal = np.fft.fft(windowed_signal)
 
 # 5. this is where processing would go with the fft output
-
+    processed_signal = chunk # clean signal
+    processed_signal = effects.basic_noise_filter( effects.vibrato(chunk) )
+    # processed_signal = effects.vibrato(chunk)
+    
 #6. apply IFFT to signal
-    ifft_signal = np.fft.ifft(fft_signal)
+    # ifft_signal = np.fft.ifft(fft_signal)
 
 # 7. Move signal to output buffer, we will map it to a array the length of our 
 # input signal. 
     try:
-        output_signal[i:i+N] = ifft_signal + output_signal[i:i+N]
+        output_signal[i:i+N] = processed_signal + output_signal[i:i+N]
     except:
         None
 # 8. Now move by Hop size samples and repeat process, Hop size is N/2 in our case

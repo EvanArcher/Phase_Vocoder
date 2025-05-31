@@ -164,7 +164,7 @@ class AudioEffects:
         Args
         amplitude (float): between 0 and 1, amplitude of wave
         frequency (float): in hz freqency of the wave
-        waveform (str): what type of waveform is it
+        waveform (str): what type of waveform is it. examples square, triangle, sine
         sample_rate (int): sample rate of signal
         """
         self.vibrato_amplitude = float(amplitude)
@@ -181,7 +181,7 @@ class AudioEffects:
         self.lfo_vibrato_num_samples = int(self.lfo.sample_rate * duration_seconds)
         self.lfo_vibrato_samples = [self.lfo.next_sample() for _ in range(self.lfo_vibrato_num_samples)]
         
-        self.vibrato_buffer = CircularBuffer(buffer_len_ms = 250 * 2, sample_rate=self.vibrato_sample_rate, signal_size=0)#500 ms buffer
+        self.vibrato_buffer = CircularBuffer(buffer_len_ms = 2000, sample_rate=self.vibrato_sample_rate, signal_size=0)#2000 ms buffer
         
     def vibrato(self, signal):
         """
@@ -203,24 +203,38 @@ class AudioEffects:
         
         # Initialize delay buffer if not done already (lazy initialization of signal size)
         if self.vibrato_buffer.signal_len == 0:
-            self.delay_buffer.signal_len = signal_len
+            self.vibrato_buffer.signal_len = signal_len
         
         # Retrieve the current buffer state (delayed signal)
-        delayed_signal = self.delay_buffer.get_buffer()
+        vibrato_signal = self.vibrato_buffer.get_buffer()
 
-        # Calculate delayed indices for reading
-        delayed_buffer_pos = (self.delay_buffer.pos - self.delay_buffer.buffer_size // 2) % self.delay_buffer.buffer_size
-        delayed_indices = np.arange(delayed_buffer_pos, delayed_buffer_pos + signal_len) % self.delay_buffer.buffer_size
         
         # Interpolate signal based on computed LFO freq
         # 1 + LFO value _____ = signal length scale factor
-        LFO_signal_len_scale_factor = 1 + self.lfo_vibrato_samples[ int( self.lfo_vibrato_num_samples * timeimport.time() ) ] #gives sample value based on time
-        output_signal = np.interp(np.linspace(0,signal_len,num=LFO_signal_len_scale_factor), np.linspace(0,signal_len,num=signal_len), signal)
-        # signal + self.delay_gain * delayed_signal[delayed_indices]
+        LFO_decimal,_ = math.modf(timeimport.time())
+        LFO_index = int( self.lfo_vibrato_num_samples * LFO_decimal )
+        LFO_signal_len_scale_factor = 1 + self.lfo_vibrato_samples[ LFO_index ] #gives sample value based on time
+        LFO_signal_scaled_len = int( signal_len * LFO_signal_len_scale_factor ) 
         
+        # Calculate delayed indices for reading
+        vibrato_buffer_pos = (self.vibrato_buffer.pos - self.vibrato_buffer.buffer_size // 2) % self.vibrato_buffer.buffer_size
+        vibrato_indices = np.arange(vibrato_buffer_pos, vibrato_buffer_pos + LFO_signal_scaled_len) % self.vibrato_buffer.buffer_size
+        
+        
+        current_vibrato_signal = np.interp(np.linspace(0,signal_len,num=LFO_signal_scaled_len), 
+                                  np.linspace(0,signal_len,num=signal_len), 
+                                  signal) 
+        
+        
+        preupdate_pos = self.vibrato_buffer.pos
         # Update buffer with the current signal
-        self.delay_buffer.update_buffer(output_signal)
-
+        self.vibrato_buffer.update_buffer(current_vibrato_signal)
+        
+        #Now we need to return a signal that is same length as input
+        # vibrato_signal = self.vibrato_buffer.get_buffer()
+        # output_signal = vibrato_signal[ self.vibrato_buffer.pos:self.vibrato_buffer.pos + signal_len]
+        output_signal = self.vibrato_buffer.get_specific_buffer_points(preupdate_pos, signal_len)
+        
         return output_signal
         
         
@@ -271,9 +285,91 @@ class AudioEffects:
         plt.tight_layout()
         plt.show()
         
+        
+        #Now show the sine wave we will modulate as a test its 440hz
+        # Parameters
+        sample_rate = 44100  # samples per second
+        duration = 1.0       # seconds
+        frequency = 100      # Hz (A4 note)
+        
+        # Generate the time axis
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        
+        # Generate the sine wave
+        sine_wave = np.sin(2 * np.pi * frequency * t)
+        
+        # Plot the first 1000 samples for clarity
+        plt.figure(figsize=(10, 4))
+        plt.plot(t[:], sine_wave[:])
+        plt.title("1-Second 100 Hz Sine Wave")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+        plt.show()
+        
+        # Compute FFT
+        fft_result = np.fft.fft(sine_wave)
+        frequencies = np.fft.fftfreq(len(sine_wave), d=1/self.vibrato_sample_rate)
+        magnitude = np.abs(fft_result)
 
+        # Limit to positive frequencies and up to 20 Hz
+        positive_freqs = frequencies[:len(sine_wave) // 2]
+        positive_magnitude = magnitude[:len(sine_wave) // 2]
 
+        # Mask for 0–20 Hz range
+        mask = (positive_freqs >= 0) & (positive_freqs <= 200)
 
+        # Plot FFT
+        plt.figure(figsize=(8, 4))
+        plt.plot(positive_freqs[mask], positive_magnitude[mask])
+        plt.title("FFT of Signal (0–200 Hz)")
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Magnitude")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        #Now we will make a vibrato class and call it using this 100hz signal 
+        #and addign the modulation on top of it
+        self.vibrato_init(amplitude=0.10, frequency=50.0, sample_rate=44100, waveform='sine')
+        output_sig = self.vibrato(sine_wave)
+        
+        duration = len(output_sig) / sample_rate  # Calculate duration in seconds
+
+        # Generate the time axis
+        time_axis = np.linspace(0, duration, len(output_sig), endpoint=False)
+        
+        #Now lets plot our signal as a test
+        # Plot the first 1000 samples for clarity
+        plt.figure(figsize=(10, 4))
+        plt.plot(time_axis[:], output_sig[:])
+        plt.title("Modulated signal vibratoed")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+        plt.show()
+        
+        # Compute FFT
+        fft_result = np.fft.fft(output_sig)
+        frequencies = np.fft.fftfreq(len(output_sig), d=1/self.vibrato_sample_rate)
+        magnitude = np.abs(fft_result)
+
+        # Limit to positive frequencies and up to 20 Hz
+        positive_freqs = frequencies[:len(output_sig) // 2]
+        positive_magnitude = magnitude[:len(output_sig) // 2]
+
+        # Mask for 0–20 Hz range
+        mask = (positive_freqs >= 0) & (positive_freqs <= 200)
+
+        # Plot FFT
+        plt.figure(figsize=(8, 4))
+        plt.plot(positive_freqs[mask], positive_magnitude[mask])
+        plt.title("FFT of Vibrato (0–200 Hz)")
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Magnitude")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 
 class CircularBuffer:
@@ -298,6 +394,7 @@ class CircularBuffer:
         Args:
         signal (numpy array): The input audio signal (current block).
         """
+        self.signal_len = len(signal)
         # Handle circular buffer wrap-around
         if self.pos + self.signal_len > self.buffer_size:
             end_len = self.buffer_size - self.pos
@@ -315,8 +412,42 @@ class CircularBuffer:
         sindicies (nunpy arrange): this tells which indicies to clear and set to zero
         """
         self.buffer[indices] = 0
+    def get_specific_buffer_points(self, starting_index, return_signal_len):
+        """
         
 
+        Parameters
+        ----------
+        starting_index : INT
+            This is the starting point you want to get from the buffer
+            I.E. feed 42069 and you will get buffer[42069:42069+return_signal_len].
+        return_signal_len : INT
+            How long you want the returned buffer split to be.
+            I.E if you give it 1024 you will get a signal 1024 long back from where you
+            told the buffer to start looking
+
+        Returns
+        -------
+        buffer_signal_slice: array/list this returns the data you requested from
+        the buffer.
+
+        """
+        # Handle circular buffer wrap-around
+        if starting_index + return_signal_len > self.buffer_size:
+            # print(f'starting index is {starting_index} and buffer size is {self.buffer_size}')
+            # print(f'return sig size = {return_signal_len}')
+            first_part_of_signal = self.buffer[starting_index:self.buffer_size]
+            # print(f'len of first part of sig {len(first_part_of_signal)}')
+            #grab the wrapped around section
+            indicies_left_to_grab = return_signal_len - (self.buffer_size - starting_index)
+            # print(f'indicies left to grab is {indicies_left_to_grab}')
+            second_part_of_signal= self.buffer[0:indicies_left_to_grab]
+            # print(f'len of second part of sig {len(second_part_of_signal)}')
+            buffer_signal_slice = np.concatenate((first_part_of_signal,second_part_of_signal))
+            # print(f'len of total sig {len(buffer_signal_slice)}')
+        else:
+            buffer_signal_slice = self.buffer[starting_index:starting_index+return_signal_len]
+        return buffer_signal_slice
     def get_buffer(self):
         """Retrieve the current buffer state."""
         return self.buffer
