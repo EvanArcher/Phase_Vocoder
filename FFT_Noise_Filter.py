@@ -104,8 +104,8 @@ for i in range(0, len(noisy_signal), hop_size):
 # sd.play(noisy_signal, signal_sample_rate)
 # sd.wait()  # Wait until the sound is finished playing
 
-sd.play(output_signal, signal_sample_rate)
-sd.wait()  # Wait until the sound is finished playing
+# sd.play(output_signal, signal_sample_rate)
+# sd.wait()  # Wait until the sound is finished playing
 
 
 plt.figure(figsize=(10, 6))

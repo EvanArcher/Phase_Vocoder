@@ -15,12 +15,12 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import resample
 import os
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pltw
 from Audio_Effects_Class import AudioEffects, LFO
 
 print(sd.query_devices())
 # Set default output device to your headphones (replace with correct device index)
-sd.default.device = (1, 2)  # (input_device, output_device), only set output in this case
+#sd.default.device = (1, 2)  # (input_device, output_device), only set output in this case
 
 samp_rate = (44100)*1 # 192kHz sampling rate
 chunk = 2**10  # 100ms of data at 192kHz
@@ -36,39 +36,44 @@ effects.basic_noise_filter_init(chunk, 0.5)
 #Vibrato set up
 effects.vibrato_init(amplitude=0.10, frequency=20000.0, sample_rate=samp_rate, waveform='sine')
 
-#%% Callback function to handle streaming
-# this is where all the magic is
-def callback(indata, outdata, frames, time, status):
-    if status:
-        print(status)
+# #%% Callback function to handle streaming
+# # this is where all the magic is
+# def callback(indata, outdata, frames, time, status):
+#     if status:
+#         print(status)
     
-    # Apply the delay effect to the incoming block of audio
-    # output_signal = effects.basic_delay_with_feedback(indata)  # Call the class method to process the audio
-    # output_signal = effects.basic_delay(indata)
-    output_signal = effects.vibrato(indata) #call the vibrato
-    # print(output_signal)
-    # Messing with making sound noisy then denoising it with denoise function
-    # signal_std = np.std(indata) #signal standard devitation
-    # desired_noise_ratio  = .5 #NSR lol = noise/signal
+#     # Apply the delay effect to the incoming block of audio
+#     # output_signal = effects.basic_delay_with_feedback(indata)  # Call the class method to process the audio
+#     # output_signal = effects.basic_delay(indata)
+#     output_signal = effects.vibrato(indata) #call the vibrato
+#     # print(output_signal)
+#     # Messing with making sound noisy then denoising it with denoise function
+#     # signal_std = np.std(indata) #signal standard devitation
+#     # desired_noise_ratio  = .5 #NSR lol = noise/signal
         
-    # noise = np.random.normal(0,1,indata.shape)
-    # scaled_noise = noise * (signal_std * desired_noise_ratio)
+#     # noise = np.random.normal(0,1,indata.shape)
+#     # scaled_noise = noise * (signal_std * desired_noise_ratio)
     
-    # output_signal = indata + scaled_noise
-    # output_signal = effects.basic_noise_filter(output_signal) # feed in noisy signal
+#     # output_signal = indata + scaled_noise
+#     # output_signal = effects.basic_noise_filter(output_signal) # feed in noisy signal
     
-    # print(delayed_output)
-    # Output the processed signal (you can also adjust gain here)
-    outdata[:] = output_signal.reshape(outdata.shape)  # Amplify the delayed output if needed
+#     # print(delayed_output)
+#     # Output the processed signal (you can also adjust gain here)
+#     outdata[:] = output_signal.reshape(outdata.shape)  # Amplify the delayed output if needed
 
-#%% Start of stream this is where we input audio and get it back as outdata  
-with sd.Stream(samplerate=samp_rate, blocksize=chunk, channels=1, callback=callback, latency=(0.001,0.001)):
-    print("Press Enter to stop streaming...")
-    input()
+# #%% Start of stream this is where we input audio and get it back as outdata  
+# with sd.Stream(samplerate=samp_rate, blocksize=chunk, channels=1, callback=callback, latency=(0.001,0.001)):
+#     print("Press Enter to stop streaming...")
+#     input()
 
-print("Streaming terminated.")
+# print("Streaming terminated.")
 
 
+
+
+
+#PITCH SHIFT TESTING
+effects.pitch_shift_test()
 
 
 

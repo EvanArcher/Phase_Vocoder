@@ -370,6 +370,134 @@ class AudioEffects:
         plt.grid(True)
         plt.tight_layout()
         plt.show()
+        
+    def pitch_shift_test(self):
+        
+        # Step 1: Original signal (440 Hz sine wave)
+        sample_rate = 44100
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        original = np.sin(2 * np.pi * 440 * t)
+        
+        # Step 2: Shrink signal by 1.5× to raise pitch
+        # Resample to shorter array
+        shrink_factor = 1 / .2
+        x_old = np.arange(len(original))
+        x_new_shrunk = np.linspace(0, len(original) - 1, int(len(original) * shrink_factor))
+        shrunk = interp1d(x_old, original, kind='linear')(x_new_shrunk)
+        
+        # Step 3: Stretch it back to original length using interpolation
+        x_shrunk = np.arange(len(shrunk))
+        x_stretch = np.linspace(0, len(shrunk) - 1, len(original))
+        stretched = interp1d(x_shrunk, shrunk, kind='linear')(x_stretch)
+        
+        # Step 4: Plot comparison
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(3, 1, 1)
+        plt.plot(t[:1000], original[:1000])
+        plt.title("Original Signal (440 Hz)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 2)
+        shrunk_time = np.linspace(0, duration, len(shrunk), endpoint=False)
+        plt.plot(shrunk_time[:1000], shrunk[:1000])
+        plt.title("Shrunk Signal (Shorter, Pitch Up by 1.5×)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 3)
+        plt.plot(t[:1000], stretched[:1000])
+        plt.title("Pitch-Shifted Signal (1.5× Higher Pitch, Original Duration)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        
+        plt.tight_layout()
+        plt.show()
+        
+    def pitch_shift_init(self,shift_amount = 1):
+        """
+        
+
+        Parameters
+        ----------
+        shift_amount : TYPE, float
+            DESCRIPTION. The default is 1. Give a floating number from -x,x 
+            This will shift the signal, a 2 will shift the signal by 2x and 
+            and -2 will shift it down by 2. Min value needs to be abs(shift_amount) >=1 
+
+
+        Returns
+        -------
+        None.
+
+        """
+        if abs(shift_amount) < 1:
+            shift_amount = 1
+        self.shift_amount = shift_amount
+        
+        
+    def pitch_shift(self,signal):
+        """
+
+        Parameters
+        ----------
+        shift_amount : TYPE, float
+            DESCRIPTION. The default is 1. Give a floating number from -x,x 
+            This will shift the signal, a 2 will shift the signal by 2x and 
+            and -2 will shift it down by 2. Min value needs to be abs(shift_amount) >=1 
+
+        Raises
+        ------
+        pitch
+            DESCRIPTION.
+
+        Returns
+        -------
+        Pitch shifted signal.
+
+        """
+        
+        # Step 1: Original signal (440 Hz sine wave)
+        sample_rate = 44100
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        original = np.sin(2 * np.pi * 440 * t)
+        
+        # Step 2: Shrink signal by 1.5× to raise pitch
+        # Resample to shorter array
+        
+        shrink_factor = 1 / .2
+        x_old = np.arange(len(original))
+        x_new_shrunk = np.linspace(0, len(original) - 1, int(len(original) * shrink_factor))
+        shrunk = interp1d(x_old, original, kind='linear')(x_new_shrunk)
+        
+        # Step 3: Stretch it back to original length using interpolation
+        x_shrunk = np.arange(len(shrunk))
+        x_stretch = np.linspace(0, len(shrunk) - 1, len(original))
+        stretched = interp1d(x_shrunk, shrunk, kind='linear')(x_stretch)
+        
+        # Step 4: Plot comparison
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(3, 1, 1)
+        plt.plot(t[:1000], original[:1000])
+        plt.title("Original Signal (440 Hz)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 2)
+        shrunk_time = np.linspace(0, duration, len(shrunk), endpoint=False)
+        plt.plot(shrunk_time[:1000], shrunk[:1000])
+        plt.title("Shrunk Signal (Shorter, Pitch Up by 1.5×)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 3)
+        plt.plot(t[:1000], stretched[:1000])
+        plt.title("Pitch-Shifted Signal (1.5× Higher Pitch, Original Duration)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        
+        plt.tight_layout()
+        plt.show()
 
 
 class CircularBuffer:
