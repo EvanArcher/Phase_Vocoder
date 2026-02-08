@@ -7,6 +7,8 @@ import time as timeimport
 from scipy.signal.windows import gaussian,hann
 import soundfile as sf
 import sounddevice as sd
+import pywt
+import math
 
 class AudioEffects:
     def __init__(self):
@@ -374,6 +376,94 @@ class AudioEffects:
         plt.tight_layout()
         plt.show()
         
+        
+        
+    ###TODO### Look into Constant Q for auto tune???
+    
+    def stft_init(self,sample_rate,stft_auto_size = False,fft_len = 1024, hop_size = 512, chunk_size = 2**12):
+        self.stft_fft_len = fft_len
+        self.stft_hop_size = hop_size
+        self.stft_sample_rate = sample_rate
+        self.stft_chunk_size = chunk_size
+        if stft_auto_size == True:
+            print('Computing optimal fft size based on sample rate')
+            ####Typically for audio analysis want bin resolution of at least 25hz
+            ### For real time audio
+            non_2_power_len = sample_rate/25
+            #Now find closest power of 2 
+            lower = 2 ** math.floor(math.log2(non_2_power_len))
+            upper = 2 ** math.ceil(math.log2(non_2_power_len))
+            if (non_2_power_len - lower) < (upper - non_2_power_len):
+                self.stft_fft_len = lower
+            else:
+                self.stft_fft_len = upper
+                
+            self.stft_fft_len = int(self.stft_fft_len)
+            self.stft_hop_size = int(self.stft_fft_len/4)
+            print(f'Chosen fft_len: {self.stft_fft_len} and hop size: {self.stft_hop_size}')
+        
+        ############Setup STFT############
+        ##TODO Add some different windows to the funciton as an input
+        w = hann(int(self.stft_fft_len), sym=True)
+        self.STFT_object = scipy.signal.ShortTimeFFT(w, hop=self.stft_hop_size, fs=self.stft_sample_rate, 
+                                        mfft=self.stft_fft_len, scale_to='magnitude')
+            
+    
+    
+    def stft_of_signal(self,signal):
+        print('hello lets STFT some hoes')
+        #STFT TEST
+        
+        STFT_output = self.STFT_object.stft(signal)  # perform the STFT
+        
+        # Axes
+        freqs = np.fft.rfftfreq(self.STFT_object.mfft, d=1 / self.stft_sample_rate)
+        times = np.arange(STFT_output.shape[1]) * (self.STFT_object.hop / self.stft_sample_rate)
+        
+        # Plot
+        plt.figure(figsize=(10, 4))
+        plt.pcolormesh(
+            times,
+            freqs,
+            np.abs(STFT_output),
+            shading='gouraud'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title(f'STFT Magnitude Spectrogram OG Signal\nfft_len : {self.stft_fft_len} hop_len: {self.stft_hop_size}')
+        plt.ylim(0, 2000)  # zoom in to see the tone clearly
+        plt.tight_layout()
+        plt.show()
+        
+    def stft_pitch_shift(self,signal,frequency_shift=1):
+        """
+        Input signal and frequency shift amount
+        frequency_shift < 1 -> lower pitch
+        frequency_shift > 1 higher pitch
+        Parameters
+        ----------
+        signal : input signal section
+        frequency_shift : TYPE, optional
+            DESCRIPTION. The default is 1.
+
+        Returns
+        -------
+        pitch_shifted_signal
+
+        """
+        STFT_output = self.STFT_object.stft(signal)  # perform the STFT
+        STFT_shifted_matrix = self.shift_STFT_freqs(STFT_output, shift_factor=frequency_shift)
+        shifted_signal_real = self.STFT_object.istft(STFT_shifted_matrix)
+        # Match original length (ShortTimeFFT may return slightly different length)
+        if len(shifted_signal_real) > self.stft_chunk_size:
+            shifted_signal_real = shifted_signal_real[:self.stft_chunk_size]
+        else:
+            shifted_signal_real = np.pad(shifted_signal_real, (0, self.stft_chunk_size - len(shifted_signal_real)))
+        
+        return shifted_signal_real
+        
+        
     def pitch_shift_test(self):
         
         # Step 1: Original signal (440 Hz sine wave)
@@ -392,10 +482,13 @@ class AudioEffects:
             
         # sd.play(original, sample_rate)
         
-        fft_len = 2**12
+        fft_len = 2**11
+        hop_size = int(fft_len/2**1)
+        print(f"""freq resolution is: {sample_rate/fft_len} Hz
+time resolution is {fft_len/sample_rate} sec""")
         #STFT TEST
         w = hann(int(fft_len), sym=True)
-        SFT = scipy.signal.ShortTimeFFT(w, hop=2**11, fs=sample_rate, mfft=fft_len, scale_to='magnitude')
+        SFT = scipy.signal.ShortTimeFFT(w, hop=hop_size, fs=sample_rate, mfft=fft_len, scale_to='magnitude')
         Sx = SFT.stft(original)  # perform the STFT
         
         # Axes
@@ -460,7 +553,7 @@ class AudioEffects:
         ######NOW LETS ATTEMPT to shift everything up by 2x freq 
         ####Then plot it#####
         
-        STFT_shifted_matrix = self.shift_STFT_freqs(Sx, shift_factor=2)
+        STFT_shifted_matrix = self.shift_STFT_freqs(Sx, shift_factor=0.5)
         
         # Plot
         plt.figure(figsize=(10, 4))
@@ -502,10 +595,12 @@ class AudioEffects:
         plt.show()
         
         #Now lets play og then new
-        sd.play(original, sample_rate)
-        sd.wait()
-        sd.play(shifted_signal_real, sample_rate)
-        sd.wait()
+        # sd.play(original, sample_rate)
+        # sd.wait()
+        # sd.play(shifted_signal_real, sample_rate)
+        # sd.wait()
+        
+        
     def shift_STFT_freqs(self, STFT_matrix, shift_factor = 1):
         """
         

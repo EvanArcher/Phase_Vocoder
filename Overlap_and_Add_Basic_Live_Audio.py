@@ -22,8 +22,8 @@ print(sd.query_devices())
 # Set default output device to your headphones (replace with correct device index)
 #sd.default.device = (1, 2)  # (input_device, output_device), only set output in this case
 
-samp_rate = (44100)*1 # 192kHz sampling rate
-chunk = 2**10  # 100ms of data at 192kHz
+samp_rate = (44100)*4 # 192kHz sampling rate
+chunk = 2**14  # 100ms of data at 192kHz
 delay_ms = 500 # Delay time in milliseconds
 delay_gain = .9
 
@@ -35,17 +35,18 @@ effects.basic_noise_filter_init(chunk, 0.5)
 
 #Vibrato set up
 effects.vibrato_init(amplitude=0.10, frequency=20000.0, sample_rate=samp_rate, waveform='sine')
+effects.stft_init(sample_rate = samp_rate,stft_auto_size = True,fft_len = 2**10, hop_size = 2**10,chunk_size=chunk)
 
-# #%% Callback function to handle streaming
-# # this is where all the magic is
+#%% Callback function to handlaΩe streaming
+# this is where all the magic is
 # def callback(indata, outdata, frames, time, status):
 #     if status:
 #         print(status)
-    
 #     # Apply the delay effect to the incoming block of audio
 #     # output_signal = effects.basic_delay_with_feedback(indata)  # Call the class method to process the audio
 #     # output_signal = effects.basic_delay(indata)
-#     output_signal = effects.vibrato(indata) #call the vibrato
+#     # output_signal = effects.vibrato(indata) #call the vibrato
+#     output_signal = effects.stft_pitch_shift(indata[:,0],frequency_shift=0.8) # call the pitch shift
 #     # print(output_signal)
 #     # Messing with making sound noisy then denoising it with denoise function
 #     # signal_std = np.std(indata) #signal standard devitation
@@ -61,7 +62,7 @@ effects.vibrato_init(amplitude=0.10, frequency=20000.0, sample_rate=samp_rate, w
 #     # Output the processed signal (you can also adjust gain here)
 #     outdata[:] = output_signal.reshape(outdata.shape)  # Amplify the delayed output if needed
 
-# #%% Start of stream this is where we input audio and get it back as outdata  
+#%% Start of stream this is where we input audio and get it back as outdata  
 # with sd.Stream(samplerate=samp_rate, blocksize=chunk, channels=1, callback=callback, latency=(0.001,0.001)):
 #     print("Press Enter to stop streaming...")
 #     input()
@@ -73,9 +74,10 @@ effects.vibrato_init(amplitude=0.10, frequency=20000.0, sample_rate=samp_rate, w
 
 
 #PITCH SHIFT TESTING
-effects.pitch_shift_test()
-
-
+signal, sample_rate = sf.read('My_vocals.wav')
+# # effects.pitch_shift_test()
+effects.stft_init(sample_rate = sample_rate,stft_auto_size = True,fft_len = 2**14, hop_size = 2**10)
+effects.stft_pitch_shift(signal,frequency_shift=2)
 
 # indata = np.random.randint(0,10, size=(4096,1))
 # output_signal = effects.vibrato(indata) #call the vibrato
