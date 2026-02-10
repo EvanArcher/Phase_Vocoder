@@ -4,6 +4,11 @@ from scipy.interpolate import interp1d
 import scipy.signal 
 import matplotlib.pyplot as plt
 import time as timeimport
+from scipy.signal.windows import gaussian,hann
+import soundfile as sf
+import sounddevice as sd
+import pywt
+import math
 
 class AudioEffects:
     def __init__(self):
@@ -368,6 +373,346 @@ class AudioEffects:
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Magnitude")
         plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        
+        
+    ###TODO### Look into Constant Q for auto tune???
+    
+    def stft_init(self,sample_rate,stft_auto_size = False,fft_len = 1024, hop_size = 512, chunk_size = 2**12):
+        self.stft_fft_len = fft_len
+        self.stft_hop_size = hop_size
+        self.stft_sample_rate = sample_rate
+        self.stft_chunk_size = chunk_size
+        if stft_auto_size == True:
+            print('Computing optimal fft size based on sample rate')
+            ####Typically for audio analysis want bin resolution of at least 25hz
+            ### For real time audio
+            non_2_power_len = sample_rate/25
+            #Now find closest power of 2 
+            lower = 2 ** math.floor(math.log2(non_2_power_len))
+            upper = 2 ** math.ceil(math.log2(non_2_power_len))
+            if (non_2_power_len - lower) < (upper - non_2_power_len):
+                self.stft_fft_len = lower
+            else:
+                self.stft_fft_len = upper
+                
+            self.stft_fft_len = int(self.stft_fft_len)
+            self.stft_hop_size = int(self.stft_fft_len/4)
+            print(f'Chosen fft_len: {self.stft_fft_len} and hop size: {self.stft_hop_size}')
+        
+        ############Setup STFT############
+        ##TODO Add some different windows to the funciton as an input
+        w = hann(int(self.stft_fft_len), sym=True)
+        self.STFT_object = scipy.signal.ShortTimeFFT(w, hop=self.stft_hop_size, fs=self.stft_sample_rate, 
+                                        mfft=self.stft_fft_len, scale_to='magnitude')
+            
+    
+    
+    def stft_of_signal(self,signal):
+        print('hello lets STFT some hoes')
+        #STFT TEST
+        
+        STFT_output = self.STFT_object.stft(signal)  # perform the STFT
+        
+        # Axes
+        freqs = np.fft.rfftfreq(self.STFT_object.mfft, d=1 / self.stft_sample_rate)
+        times = np.arange(STFT_output.shape[1]) * (self.STFT_object.hop / self.stft_sample_rate)
+        
+        # Plot
+        plt.figure(figsize=(10, 4))
+        plt.pcolormesh(
+            times,
+            freqs,
+            np.abs(STFT_output),
+            shading='gouraud'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title(f'STFT Magnitude Spectrogram OG Signal\nfft_len : {self.stft_fft_len} hop_len: {self.stft_hop_size}')
+        plt.ylim(0, 2000)  # zoom in to see the tone clearly
+        plt.tight_layout()
+        plt.show()
+        
+    def stft_pitch_shift(self,signal,frequency_shift=1):
+        """
+        Input signal and frequency shift amount
+        frequency_shift < 1 -> lower pitch
+        frequency_shift > 1 higher pitch
+        Parameters
+        ----------
+        signal : input signal section
+        frequency_shift : TYPE, optional
+            DESCRIPTION. The default is 1.
+
+        Returns
+        -------
+        pitch_shifted_signal
+
+        """
+        STFT_output = self.STFT_object.stft(signal)  # perform the STFT
+        STFT_shifted_matrix = self.shift_STFT_freqs(STFT_output, shift_factor=frequency_shift)
+        shifted_signal_real = self.STFT_object.istft(STFT_shifted_matrix)
+        # Match original length (ShortTimeFFT may return slightly different length)
+        if len(shifted_signal_real) > self.stft_chunk_size:
+            shifted_signal_real = shifted_signal_real[:self.stft_chunk_size]
+        else:
+            shifted_signal_real = np.pad(shifted_signal_real, (0, self.stft_chunk_size - len(shifted_signal_real)))
+        
+        return shifted_signal_real
+        
+        
+    def pitch_shift_test(self):
+        
+        # Step 1: Original signal (440 Hz sine wave)
+        sample_rate = 44100
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        original = np.sin(2 * np.pi * 440 * t) + np.sin(2 * np.pi * 869 * t)
+        
+        original,sample_rate = sf.read('My_vocals.wav')
+        t = np.arange(len(original)) / sample_rate
+        try:
+            if original.shape[1] == 2: # check if impulse is dual signal
+                original = np.mean(original, axis=1)
+        except:
+            None
+            
+        # sd.play(original, sample_rate)
+        
+        fft_len = 2**11
+        hop_size = int(fft_len/2**1)
+        print(f"""freq resolution is: {sample_rate/fft_len} Hz
+time resolution is {fft_len/sample_rate} sec""")
+        #STFT TEST
+        w = hann(int(fft_len), sym=True)
+        SFT = scipy.signal.ShortTimeFFT(w, hop=hop_size, fs=sample_rate, mfft=fft_len, scale_to='magnitude')
+        Sx = SFT.stft(original)  # perform the STFT
+        
+        # Axes
+        freqs = np.fft.rfftfreq(SFT.mfft, d=1 / sample_rate)
+        times = np.arange(Sx.shape[1]) * (SFT.hop / sample_rate)
+        
+        # Plot
+        plt.figure(figsize=(10, 4))
+        plt.pcolormesh(
+            times,
+            freqs,
+            np.abs(Sx),
+            shading='gouraud'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title('STFT Magnitude Spectrogram OG Signal')
+        plt.ylim(0, 2000)  # zoom in to see the tone clearly
+        plt.tight_layout()
+        plt.show()
+        
+        # Step 2: Shrink signal by 1.5× to raise pitch
+        # Resample to shorter array
+        shrink_factor = 1 / 1.5
+        x_old = np.arange(len(original))
+        x_new_shrunk = np.linspace(0, len(original) - 1, int(len(original) * shrink_factor))
+        shrunk = interp1d(x_old, original, kind='linear')(x_new_shrunk)
+        
+        # Step 3: Stretch it back to original length using interpolation
+        # NEED TO FIX
+        # NEED THIS TO PRESERVE THE SAME TIME AND PITCH EFFECT
+        # PITCH EFFECT WORKS SINCE IT SPEEDS IT UP, BUT WE NEED TO RAISE PITCH AND KEEP LENGTH
+        x_shrunk = np.arange(len(shrunk))
+        x_stretch = np.linspace(0, len(shrunk) - 1, len(original))
+        stretched = interp1d(x_shrunk, shrunk, kind='linear')(x_stretch)
+        
+        # Step 4: Plot comparison
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(3, 1, 1)
+        plt.plot(t, original)
+        plt.title("Original Signal (440 Hz)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 2)
+        shrunk_time = np.linspace(0, duration, len(shrunk), endpoint=False)
+        plt.plot(shrunk_time, shrunk)
+        plt.title("Shrunk Signal (Shorter, Pitch Up by 1.5×)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 3)
+        plt.plot(t, stretched)
+        plt.title("Pitch-Shifted Signal (1.5× Higher Pitch, Original Duration)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        
+        plt.tight_layout()
+        plt.show()
+        
+        
+        ######NOW LETS ATTEMPT to shift everything up by 2x freq 
+        ####Then plot it#####
+        
+        STFT_shifted_matrix = self.shift_STFT_freqs(Sx, shift_factor=0.5)
+        
+        # Plot
+        plt.figure(figsize=(10, 4))
+        plt.pcolormesh(
+            times,
+            freqs,
+            np.abs(STFT_shifted_matrix),
+            shading='gouraud'
+        )
+        plt.colorbar(label='Magnitude')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title('STFT Magnitude Spectrogram Shifted Signal')
+        plt.ylim(0, 2000)  # zoom in to see the tone clearly
+        plt.tight_layout()
+        plt.show()
+        
+        ####Now bring it to real domain and lets play/ plot it
+        # 1) Inverse STFT
+        shifted_signal_real = SFT.istft(STFT_shifted_matrix)
+        
+        # 2) Match original length (ShortTimeFFT may return slightly different length)
+        N = len(original)
+        if len(shifted_signal_real) > N:
+            shifted_signal_real = shifted_signal_real[:N]
+        else:
+            shifted_signal_real = np.pad(shifted_signal_real, (0, N - len(shifted_signal_real)))
+        
+        # 3) Plot waveform (first 0.05s for visibility)
+        t_y = np.arange(len(shifted_signal_real)) / sample_rate
+        
+        plt.figure(figsize=(12, 4))
+        plt.plot(t_y, shifted_signal_real, linewidth=0.8)
+        plt.title("Reconstructed signal from shifted STFT")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.xlim(0, max(t_y))
+        plt.tight_layout()
+        plt.show()
+        
+        #Now lets play og then new
+        # sd.play(original, sample_rate)
+        # sd.wait()
+        # sd.play(shifted_signal_real, sample_rate)
+        # sd.wait()
+        
+        
+    def shift_STFT_freqs(self, STFT_matrix, shift_factor = 1):
+        """
+        
+
+        Parameters
+        ----------
+        shift_factor : TYPE, float
+            DESCRIPTION. The default is 1.
+        STFT_matrix : matrix
+            STFT_matrix[row,col]
+
+        Returns
+        -------
+        STFT shifted.
+
+        """
+        STFT_shifted_matrix = np.zeros_like(STFT_matrix)
+        freqs_row, time_col = STFT_matrix.shape
+        #Go through each column and shift the index value up to its index shifted 
+        #Unless it goes over the dimensions of the matrix
+        for col in range(time_col):
+            for row in range(freqs_row):
+                shifted_row = int(shift_factor * row)
+
+                if shifted_row < freqs_row:
+                    STFT_shifted_matrix[shifted_row,col] += STFT_matrix[row,col]
+            
+        return STFT_shifted_matrix
+        
+        
+    def pitch_shift_init(self,shift_amount = 1):
+        """
+        
+
+        Parameters
+        ----------
+        shift_amount : TYPE, float
+            DESCRIPTION. The default is 1. Give a floating number from -x,x 
+            This will shift the signal, a 2 will shift the signal by 2x and 
+            and -2 will shift it down by 2. Min value needs to be abs(shift_amount) >=1 
+
+
+        Returns
+        -------
+        None.
+
+        """
+        if abs(shift_amount) < 1:
+            shift_amount = 1
+        self.shift_amount = shift_amount
+        
+        
+    def pitch_shift(self,signal):
+        """
+
+        Parameters
+        ----------
+        shift_amount : TYPE, float
+            DESCRIPTION. The default is 1. Give a floating number from -x,x 
+            This will shift the signal, a 2 will shift the signal by 2x and 
+            and -2 will shift it down by 2. Min value needs to be abs(shift_amount) >=1 
+
+        Raises
+        ------
+        pitch
+            DESCRIPTION.
+
+        Returns
+        -------
+        Pitch shifted signal.
+
+        """
+        
+        # Step 1: Original signal (440 Hz sine wave)
+        sample_rate = 44100
+        duration = 1.0
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        original = np.sin(2 * np.pi * 440 * t)
+        
+        # Step 2: Shrink signal by 1.5× to raise pitch
+        # Resample to shorter array
+        
+        shrink_factor = 1 / .2
+        x_old = np.arange(len(original))
+        x_new_shrunk = np.linspace(0, len(original) - 1, int(len(original) * shrink_factor))
+        shrunk = interp1d(x_old, original, kind='linear')(x_new_shrunk)
+        
+        # Step 3: Stretch it back to original length using interpolation
+        x_shrunk = np.arange(len(shrunk))
+        x_stretch = np.linspace(0, len(shrunk) - 1, len(original))
+        stretched = interp1d(x_shrunk, shrunk, kind='linear')(x_stretch)
+        
+        # Step 4: Plot comparison
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(3, 1, 1)
+        plt.plot(t[:1000], original[:1000])
+        plt.title("Original Signal (440 Hz)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 2)
+        shrunk_time = np.linspace(0, duration, len(shrunk), endpoint=False)
+        plt.plot(shrunk_time[:1000], shrunk[:1000])
+        plt.title("Shrunk Signal (Shorter, Pitch Up by 1.5×)")
+        plt.ylabel("Amplitude")
+        
+        plt.subplot(3, 1, 3)
+        plt.plot(t[:1000], stretched[:1000])
+        plt.title("Pitch-Shifted Signal (1.5× Higher Pitch, Original Duration)")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        
         plt.tight_layout()
         plt.show()
 
